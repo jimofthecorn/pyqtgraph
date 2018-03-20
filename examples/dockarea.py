@@ -4,11 +4,11 @@ This example demonstrates the use of pyqtgraph's dock widget system.
 
 The dockarea system allows the design of user interfaces which can be rearranged by
 the user at runtime. Docks can be moved, resized, stacked, and torn out of the main
-window. This is similar in principle to the docking system built into Qt, but 
-offers a more deterministic dock placement API (in Qt it is very difficult to 
-programatically generate complex dock arrangements). Additionally, Qt's docks are 
-designed to be used as small panels around the outer edge of a window. Pyqtgraph's 
-docks were created with the notion that the entire window (or any portion of it) 
+window. This is similar in principle to the docking system built into Qt, but
+offers a more deterministic dock placement API (in Qt it is very difficult to
+programatically generate complex dock arrangements). Additionally, Qt's docks are
+designed to be used as small panels around the outer edge of a window. Pyqtgraph's
+docks were created with the notion that the entire window (or any portion of it)
 would consist of dockable components.
 
 """
@@ -21,8 +21,10 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph.console
 import numpy as np
+from pprint import pprint
 
 from pyqtgraph.dockarea import *
+
 
 app = QtGui.QApplication([])
 win = QtGui.QMainWindow()
@@ -39,7 +41,7 @@ d2 = Dock("Dock2 - Console", size=(500,300), closable=True)
 d3 = Dock("Dock3", size=(500,400))
 d4 = Dock("Dock4 (tabbed) - Plot", size=(500,200))
 d5 = Dock("Dock5 - Image", size=(500,200))
-d6 = Dock("Dock6 (tabbed) - Plot", size=(500,200))
+d6 = Dock("Dock6 (tabbed) - Plot", size=(500,200), closable=True)
 area.addDock(d1, 'left')      ## place d1 at left edge of dock area (it will fill the whole space since there are no other docks yet)
 area.addDock(d2, 'right')     ## place d2 at right edge of dock area
 area.addDock(d3, 'bottom', d1)## place d3 at bottom edge of d1
@@ -57,9 +59,9 @@ area.moveDock(d5, 'top', d2)     ## move d5 to top edge of d2
 
 ## first dock gets save/restore buttons
 w1 = pg.LayoutWidget()
-label = QtGui.QLabel(""" -- DockArea Example -- 
+label = QtGui.QLabel(""" -- DockArea Example --
 This window has 6 Dock widgets in it. Each dock can be dragged
-by its title bar to occupy a different space within the window 
+by its title bar to occupy a different space within the window
 but note that one dock has its title bar hidden). Additionally,
 the borders between docks may be dragged to resize. Docks that are dragged on top
 of one another are stacked in a tabbed layout. Double-click a dock title
@@ -72,16 +74,6 @@ w1.addWidget(label, row=0, col=0)
 w1.addWidget(saveBtn, row=1, col=0)
 w1.addWidget(restoreBtn, row=2, col=0)
 d1.addWidget(w1)
-state = None
-def save():
-    global state
-    state = area.saveState()
-    restoreBtn.setEnabled(True)
-def load():
-    global state
-    area.restoreState(state)
-saveBtn.clicked.connect(save)
-restoreBtn.clicked.connect(load)
 
 
 w2 = pg.console.ConsoleWidget()
@@ -102,9 +94,40 @@ w5.setImage(np.random.normal(size=(100,100)))
 d5.addWidget(w5)
 
 w6 = pg.PlotWidget(title="Dock 6 plot")
-w6.plot(np.random.normal(size=100))
+curve = w6.plot(pen='y')
+data = np.random.normal(size=(10,1000))
+ptr = 0
+def update():
+    global curve, data, ptr, p6
+    curve.setData(data[ptr%10])
+    if ptr == 0:
+        w6.enableAutoRange('xy', False)  ## stop auto-scaling after the first data set is plotted
+    ptr += 1
+timer = QtCore.QTimer()
+timer.timeout.connect(update)
+def start_timer():
+    timer.start(50)
+def stop_timer():
+    timer.stop()
+d6.sigOpened.connect(start_timer)
+d6.sigClosed.connect(stop_timer)
 d6.addWidget(w6)
+start_timer()
 
+state = None
+savedDocks = {}
+def save():
+    global state, savedDocks
+    state = area.saveState()
+    savedDocks = area.getDocks()
+    restoreBtn.setEnabled(True)
+def load():
+    global state, savedDocks
+    area.restoreState(state, missing='create', savedDocks=savedDocks)
+
+
+saveBtn.clicked.connect(save)
+restoreBtn.clicked.connect(load)
 
 
 win.show()
